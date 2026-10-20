@@ -9,6 +9,10 @@ export interface AppConfig {
   readonly databaseUrl: string;
   readonly databasePoolSize: number;
   readonly seedDemoData: boolean;
+  /** Where the seeder writes the freshly issued demonstration credentials. */
+  readonly demoCredentialsFile: string | undefined;
+  /** Base URL of the bundled test receiver, used for the seeded destinations. */
+  readonly receiverUrl: string;
   readonly maxPayloadBytes: number;
   readonly dispatch: DispatchConfig;
 }
@@ -43,6 +47,8 @@ export function loadAppConfig(source: NodeJS.ProcessEnv = process.env): AppConfi
     databaseUrl: env.string('DATABASE_URL'),
     databasePoolSize: env.integer('DATABASE_POOL_SIZE', 20, { min: 2, max: 200 }),
     seedDemoData: env.boolean('SEED_DEMO', false),
+    demoCredentialsFile: source.DEMO_CREDENTIALS_FILE?.trim() || undefined,
+    receiverUrl: env.string('RECEIVER_URL', 'http://127.0.0.1:3022'),
     maxPayloadBytes: env.integer('MAX_PAYLOAD_BYTES', 262144, { min: 1024 }),
     dispatch: {
       enabled: !env.boolean('DISPATCHER_DISABLED', false),

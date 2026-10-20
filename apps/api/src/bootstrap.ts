@@ -11,6 +11,7 @@ import { requestLogging } from './shared/logging/request-logging.middleware';
 import { StructuredLogger } from './shared/logging/structured-logger';
 import { Database } from './shared/database/database.service';
 import { runMigrations } from './shared/database/migration-runner';
+import { seedDemoData } from './cli/seed';
 
 export interface BootstrapOptions {
   /** Overrides the environment-derived configuration; used by the test harness. */
@@ -72,6 +73,12 @@ export async function createApiApp(
       .build(),
   );
   SwaggerModule.setup('api/docs', app, document);
+
+  if (config.seedDemoData)
+    await seedDemoData(app, {
+      receiverUrl: config.receiverUrl,
+      credentialsFile: config.demoCredentialsFile,
+    });
 
   return app;
 }
