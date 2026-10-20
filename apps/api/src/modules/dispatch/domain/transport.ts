@@ -1,14 +1,9 @@
 export interface DeliveryRequest {
   readonly url: string;
-  /** Exact bytes to send and to sign; the signature covers this string verbatim. */
+  /** Exact bytes to send; the signature in `headers` covers this string verbatim. */
   readonly body: string;
-  readonly signingSecrets: readonly string[];
+  readonly headers: Record<string, string>;
   readonly timeoutMs: number;
-  readonly deliveryId: string;
-  readonly eventId: string;
-  readonly eventType: string;
-  readonly attempt: number;
-  readonly requestId: string;
 }
 
 export interface TransportResponse {
@@ -23,7 +18,10 @@ export interface TransportResponse {
 export interface TransportFailure {
   readonly kind: 'transport_error';
   readonly durationMs: number;
-  /** Stable classification: `timeout`, `dns`, `connection_refused`, `tls`, `blocked`, `unknown`. */
+  /**
+   * Stable classification: `timeout`, `dns`, `connection_refused`, `connection_reset`, `tls`,
+   * `unreachable`, `blocked` or `unknown`.
+   */
   readonly reason: string;
   readonly message: string;
 }
@@ -31,9 +29,9 @@ export interface TransportFailure {
 export type TransportOutcome = TransportResponse | TransportFailure;
 
 /**
- * Port for sending one signed request. The transport reports what happened and never decides
- * whether it counts as a success - that judgement, and the retry it implies, belongs to the
- * dispatcher.
+ * Port for sending one request. The transport reports what happened and never decides whether it
+ * counts as a success: that judgement, and the retry it implies, belongs to the dispatcher.
+ * Signing belongs there too, so the dispatcher can store exactly the headers it asked for.
  */
 export abstract class WebhookTransport {
   abstract send(request: DeliveryRequest): Promise<TransportOutcome>;

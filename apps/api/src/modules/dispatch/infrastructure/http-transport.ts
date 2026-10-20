@@ -3,9 +3,7 @@ import { Agent as HttpAgent, IncomingMessage, request as httpRequest } from 'nod
 import { Agent as HttpsAgent, request as httpsRequest } from 'node:https';
 import { LookupAddress, lookup as dnsLookup } from 'node:dns';
 import { isIP } from 'node:net';
-import { SIGNATURE_HEADER, buildSignatureHeader } from '@hookline/signature';
 import { APP_CONFIG, AppConfig } from '../../../config/app-config';
-import { Clock } from '../../../shared/clock/clock';
 import { DeliveryRequest, TransportOutcome, WebhookTransport } from '../domain/transport';
 import { classifyAddress } from './address-policy';
 
@@ -30,10 +28,7 @@ export class HttpWebhookTransport extends WebhookTransport implements OnApplicat
   private readonly httpAgent = new HttpAgent({ keepAlive: true, maxSockets: 64 });
   private readonly httpsAgent = new HttpsAgent({ keepAlive: true, maxSockets: 64 });
 
-  constructor(
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
-    private readonly clock: Clock,
-  ) {
+  constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {
     super();
   }
 
@@ -91,7 +86,6 @@ export class HttpWebhookTransport extends WebhookTransport implements OnApplicat
   ): Promise<TransportOutcome> {
     const secure = target.protocol === 'https:';
     const send = secure ? httpsRequest : httpRequest;
-    const timestamp = this.clock.nowSeconds();
     const maxBytes = this.config.dispatch.maxStoredResponseBytes;
 
     return new Promise<TransportOutcome>((resolve) => {
@@ -110,21 +104,10 @@ export class HttpWebhookTransport extends WebhookTransport implements OnApplicat
           timeout: request.timeoutMs,
           lookup: pinnedLookup(permitted),
           headers: {
-            'content-type': 'application/json',
+            ...request.headers,
             'content-length': Buffer.byteLength(request.body).toString(),
             'user-agent': USER_AGENT,
             accept: 'application/json, text/plain;q=0.9, */*;q=0.8',
-            [SIGNATURE_HEADER]: buildSignatureHeader({
-              payload: request.body,
-              secrets: request.signingSecrets,
-              timestamp,
-            }),
-            'hookline-timestamp': String(timestamp),
-            'hookline-event-id': request.eventId,
-            'hookline-event-type': request.eventType,
-            'hookline-delivery-id': request.deliveryId,
-            'hookline-attempt': String(request.attempt),
-            'x-request-id': request.requestId,
           },
         },
         (response: IncomingMessage) => {
