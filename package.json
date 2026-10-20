@@ -10,8 +10,8 @@
     "apps/web"
   ],
   "scripts": {
-    "build": "npm run build -w @hookline/signature && npm run build -w @hookline/api && npm run build -w @hookline/receiver && npm run build -w @hookline/web",
-    "build:services": "npm run build -w @hookline/signature && npm run build -w @hookline/api && npm run build -w @hookline/receiver",
+    "build": "npm run build:services && npm run build -w @hookline/web",
+    "build:services": "npm run build -w @hookline/signature && npm run build -w @hookline/receiver && npm run build -w @hookline/api",
     "dev": "npm run build:services && node scripts/local.mjs",
     "test": "npm run build:services && node scripts/test.mjs",
     "test:external": "npm run build:services && node --test apps/api/dist/test/unit/*.test.js apps/api/dist/test/integration/*.test.js",
