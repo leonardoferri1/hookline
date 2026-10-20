@@ -4,7 +4,13 @@ import { FlashNotice } from '@/components/flash-notice';
 import { ApiError, callApi } from '@/lib/api-client';
 import { duration, percent, relative, stamp } from '@/lib/format';
 import type { Delivery, Endpoint, EndpointSecret, Metrics } from '@/lib/types';
-import { deleteEndpoint, rotateSecret, setEndpointStatus, updateEndpoint } from '../actions';
+import {
+  closeBreaker,
+  deleteEndpoint,
+  rotateSecret,
+  setEndpointStatus,
+  updateEndpoint,
+} from '../actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +65,10 @@ export default async function EndpointPage({
             {health.circuitRetryAt ? `, next probe ${relative(health.circuitRetryAt)}` : ''}. Queued
             deliveries wait; nothing is lost. A single successful probe closes the breaker and
             releases the backlog.
+            <form action={closeBreaker} style={{ marginTop: 10 }}>
+              <input type="hidden" name="endpointId" value={endpoint.id} />
+              <button type="submit">Close the breaker now</button>
+            </form>
           </div>
         ) : null}
 

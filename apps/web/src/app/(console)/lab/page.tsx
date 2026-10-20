@@ -11,6 +11,7 @@ import {
   receiverState,
 } from '@/lib/receiver-client';
 import type { Delivery, Endpoint, ReceiverState } from '@/lib/types';
+import { closeBreaker } from '../endpoints/actions';
 import { clearReceiverLog, prepareDrill, publishBurst, updateBehaviour } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -226,6 +227,13 @@ export default async function LabPage() {
                   Clear receiver log
                 </button>
               </form>
+              {drill && drill.health.circuitState !== 'closed' ? (
+                <form action={closeBreaker}>
+                  <input type="hidden" name="endpointId" value={drill.id} />
+                  <input type="hidden" name="returnTo" value="/lab" />
+                  <button type="submit">Close the breaker now</button>
+                </form>
+              ) : null}
             </div>
           </section>
 

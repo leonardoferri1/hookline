@@ -66,7 +66,8 @@ export async function prepareDrill(): Promise<void> {
       secret = created.secret;
     }
 
-    await callReceiver('/control/secrets', { method: 'PUT', body: { secrets: [secret] } });
+    // POST adds rather than replaces: the receiver also verifies the seeded destinations.
+    await callReceiver('/control/secrets', { method: 'POST', body: { secrets: [secret] } });
     await finish(
       'success',
       existing

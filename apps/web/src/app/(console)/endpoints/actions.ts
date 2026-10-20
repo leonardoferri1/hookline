@@ -96,6 +96,37 @@ export async function setEndpointStatus(formData: FormData): Promise<void> {
   redirect(`/endpoints/${endpointId}`);
 }
 
+/**
+ * Closes an open breaker on demand.
+ *
+ * The breaker's cooldown exists to stop a dead destination absorbing the queue, but an operator
+ * who has just fixed the destination knows something the cooldown does not. This asserts that the
+ * destination is healthy and releases the backlog immediately; if it is still broken the next
+ * failure opens the breaker again, so the assertion costs at most one more round of attempts.
+ */
+export async function closeBreaker(formData: FormData): Promise<void> {
+  const endpointId = String(formData.get('endpointId'));
+  const returnTo = String(formData.get('returnTo') ?? `/endpoints/${endpointId}`);
+
+  try {
+    await callApi<Endpoint>(`/endpoints/${endpointId}`, {
+      method: 'PATCH',
+      body: { status: 'enabled' },
+    });
+    await setFlash({
+      tone: 'success',
+      message:
+        'Breaker closed. The queued backlog is attempted now; a failure opens it again straight away.',
+    });
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    await setFlash({ tone: 'error', message: error.message });
+  }
+
+  revalidatePath(returnTo);
+  redirect(returnTo);
+}
+
 export async function updateEndpoint(formData: FormData): Promise<void> {
   const endpointId = String(formData.get('endpointId'));
   const body = {
