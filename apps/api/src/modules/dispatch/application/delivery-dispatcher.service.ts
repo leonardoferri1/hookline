@@ -2,7 +2,10 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SIGNATURE_HEADER, buildSignatureHeader } from '@hookline/signature';
 import { APP_CONFIG, AppConfig } from '../../../config/app-config';
 import { Clock } from '../../../shared/clock/clock';
+import { EndpointHealthRepository } from '../../endpoints/domain/endpoint-health.repository';
+import { CircuitState } from '../../endpoints/domain/endpoint';
 import { AttemptOutcome, classifyOutcome } from '../domain/attempt';
+import { DEFAULT_BREAKER } from '../domain/circuit-breaker';
 import { DEFAULT_BACKOFF, nextDelaySeconds, parseRetryAfter } from '../domain/backoff';
 import { ClaimedDelivery, DeliveryQueue } from '../domain/queue.repository';
 import { TransportOutcome, WebhookTransport } from '../domain/transport';
@@ -17,6 +20,9 @@ export interface DispatchResult {
   /** Null when the delivery reached a terminal state. */
   readonly nextAttemptAt: Date | null;
   readonly exhausted: boolean;
+  /** Set when this attempt moved the endpoint's circuit breaker. */
+  readonly circuitState: CircuitState | null;
+  readonly circuitChanged: boolean;
 }
 
 /**
@@ -34,6 +40,7 @@ export class DeliveryDispatcher {
   constructor(
     private readonly queue: DeliveryQueue,
     private readonly transport: WebhookTransport,
+    private readonly health: EndpointHealthRepository,
     private readonly clock: Clock,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
@@ -105,6 +112,17 @@ export class DeliveryDispatcher {
       nextAttemptAt,
     });
 
+    /*
+     * The breaker is updated after the delivery is settled, so a destination that is down stops
+     * receiving the rest of its backlog within a few attempts instead of absorbing the whole
+     * queue. A success closes it immediately: the destination answered, so there is nothing left
+     * to protect.
+     */
+    const transition =
+      attempt.outcome === 'succeeded'
+        ? await this.health.recordSuccess(claimed.endpointId, startedAt)
+        : await this.health.recordFailure(claimed.endpointId, startedAt, DEFAULT_BREAKER);
+
     const result: DispatchResult = {
       deliveryId: claimed.deliveryId,
       endpointId: claimed.endpointId,
@@ -114,7 +132,20 @@ export class DeliveryDispatcher {
       durationMs: attempt.durationMs,
       nextAttemptAt,
       exhausted: attempt.outcome !== 'succeeded' && exhausted,
+      circuitState: transition?.health.circuitState ?? null,
+      circuitChanged: transition?.changed ?? false,
     };
+
+    if (transition?.changed)
+      this.logger.warn({
+        message: 'endpoint.circuit_changed',
+        endpointId: claimed.endpointId,
+        endpoint: claimed.endpointName,
+        from: transition.previous,
+        to: transition.health.circuitState,
+        consecutiveFailures: transition.health.consecutiveFailures,
+        retryAt: transition.health.circuitRetryAt?.toISOString() ?? null,
+      });
 
     this.logger.log({
       message: 'delivery.attempted',

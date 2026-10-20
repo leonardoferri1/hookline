@@ -49,14 +49,24 @@ export class PostgresDeliveryQueue extends DeliveryQueue {
     leaseSeconds: number,
   ): Promise<ClaimedDelivery[]> {
     const result = await this.database.query<ClaimRow>(
-      `WITH due AS (
-         SELECT d.id
+      `WITH locked AS (
+         SELECT d.id, d.endpoint_id, d.next_attempt_at, d.created_at, e.circuit_state
            FROM deliveries d
            JOIN endpoints e ON e.id = d.endpoint_id
           WHERE d.state = 'pending'
             AND d.next_attempt_at <= $2::timestamptz
             AND e.status = 'enabled'
             AND (e.circuit_state <> 'open' OR e.circuit_retry_at <= $2::timestamptz)
+            -- While a probe is in the air, nothing else is sent to a recovering destination.
+            AND (
+              e.circuit_state = 'closed'
+              OR NOT EXISTS (
+                   SELECT 1
+                     FROM deliveries probing
+                    WHERE probing.endpoint_id = d.endpoint_id
+                      AND probing.state = 'in_flight'
+                 )
+            )
             AND (
               NOT e.ordered
               OR d.partition_key IS NULL
@@ -76,6 +86,31 @@ export class PostgresDeliveryQueue extends DeliveryQueue {
           ORDER BY d.next_attempt_at, d.created_at
           LIMIT $3::integer
           FOR UPDATE OF d SKIP LOCKED
+       ),
+       /*
+        * A breaker that is not closed admits exactly one delivery per cycle: that delivery is the
+        * probe. The ranking lives in its own CTE because PostgreSQL refuses a locking clause in a
+        * query that uses window functions; rows that lose the ranking were only locked for the
+        * duration of this statement and are left untouched.
+        */
+       ranked AS (
+         SELECT id,
+                circuit_state,
+                row_number() OVER (
+                  PARTITION BY endpoint_id ORDER BY next_attempt_at, created_at
+                ) AS probe_rank
+           FROM locked
+       ),
+       due AS (
+         SELECT id FROM ranked WHERE circuit_state = 'closed' OR probe_rank = 1
+       ),
+       -- An open breaker whose cooldown elapsed becomes half-open as its probe is claimed.
+       probing AS (
+         UPDATE endpoints e
+            SET circuit_state = 'half_open', updated_at = now()
+          WHERE e.circuit_state = 'open'
+            AND e.id IN (SELECT endpoint_id FROM locked)
+          RETURNING e.id
        ),
        claimed AS (
          UPDATE deliveries d

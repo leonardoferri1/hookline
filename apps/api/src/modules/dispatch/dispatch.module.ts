@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { EndpointsModule } from '../endpoints/endpoints.module';
 import { DeliveryDispatcher } from './application/delivery-dispatcher.service';
 import { DispatchWorker } from './application/dispatch-worker.service';
 import { DeliveryQueue } from './domain/queue.repository';
@@ -7,6 +8,7 @@ import { HttpWebhookTransport } from './infrastructure/http-transport';
 import { PostgresDeliveryQueue } from './infrastructure/postgres-delivery-queue.repository';
 
 @Module({
+  imports: [EndpointsModule],
   providers: [
     { provide: DeliveryQueue, useClass: PostgresDeliveryQueue },
     { provide: WebhookTransport, useClass: HttpWebhookTransport },
