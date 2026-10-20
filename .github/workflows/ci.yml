@@ -1,0 +1,53 @@
+name: Verify
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    # The suite talks to a real database on purpose, so CI provides one rather than
+    # substituting a fake that would agree with whatever the code does.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: hookline
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: hookline_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U hookline -d hookline_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://hookline:ci-only@127.0.0.1:5432/hookline_test
+      NODE_ENV: test
+      DISPATCHER_DISABLED: 'true'
+      # The suite's receiver runs on loopback inside the runner.
+      ALLOW_PRIVATE_DESTINATIONS: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Formatting
+        run: npm run format:check
+
+      - name: Build every workspace
+        run: npm run build
+
+      - name: Tests
+        run: npm run test:external
+
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev
