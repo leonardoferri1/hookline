@@ -34,5 +34,9 @@ export async function startDatabase({ test = false } = {}) {
   const exists = await client.query("SELECT 1 FROM pg_database WHERE datname = 'hookline'");
   if (!exists.rowCount) await client.query('CREATE DATABASE hookline');
   await client.end();
-  return { postgres, url: `postgresql://hookline:${password}@127.0.0.1:${port}/hookline` };
+  return {
+    postgres,
+    directory: databaseDir,
+    url: `postgresql://hookline:${password}@127.0.0.1:${port}/hookline`,
+  };
 }

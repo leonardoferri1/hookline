@@ -25,6 +25,7 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.15.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "@hookline/receiver": "*"
   }
 }
