@@ -1,0 +1,16 @@
+{
+  "name": "@hookline/signature",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Versioned HMAC signature scheme shared by the Hookline sender and its consumers.",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test dist/test/*.test.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
+  }
+}
