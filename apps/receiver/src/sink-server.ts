@@ -35,8 +35,18 @@ export class SinkServer {
     return this.secrets.length;
   }
 
+  /** Replaces the whole set, used when a launcher establishes the receiver's starting state. */
   setSecrets(secrets: readonly string[]): void {
-    this.secrets = [...secrets];
+    this.secrets = [...new Set(secrets)];
+  }
+
+  /**
+   * Adds secrets without discarding the ones already held. A receiver standing in for several
+   * destinations has to verify all of them, so a caller that only knows its own secret must not be
+   * able to silently break the others.
+   */
+  addSecrets(secrets: readonly string[]): void {
+    this.secrets = [...new Set([...this.secrets, ...secrets])];
   }
 
   /**
@@ -109,18 +119,16 @@ export class SinkServer {
       body,
     });
 
-    response
-      .writeHead(status, headers)
-      .end(
-        JSON.stringify(
-          status < 300
-            ? { received: true }
-            : {
-                received: false,
-                reason: status === 401 ? 'invalid_signature' : 'simulated_failure',
-              },
-        ),
-      );
+    response.writeHead(status, headers).end(
+      JSON.stringify(
+        status < 300
+          ? { received: true }
+          : {
+              received: false,
+              reason: status === 401 ? 'invalid_signature' : 'simulated_failure',
+            },
+      ),
+    );
   }
 
   private decideStatus(verification: { valid: boolean } | null): number {

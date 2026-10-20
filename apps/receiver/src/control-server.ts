@@ -58,8 +58,8 @@ export class ControlServer {
       await this.updateBehaviour(request, response);
       return;
     }
-    if (path === '/control/secrets' && method === 'PUT') {
-      await this.updateSecrets(request, response);
+    if (path === '/control/secrets' && (method === 'PUT' || method === 'POST')) {
+      await this.updateSecrets(request, response, method === 'PUT');
       return;
     }
     if (path === '/control/requests' && method === 'DELETE') {
@@ -94,11 +94,16 @@ export class ControlServer {
   }
 
   /**
-   * The console pushes the endpoint's signing secrets here so the sink can verify what it
-   * receives. They are held in memory only, and they are the demonstration endpoint's secrets -
-   * no production value ever reaches this process.
+   * `PUT` sets the whole collection, `POST` adds to it. The distinction matters because the
+   * receiver stands in for several destinations: a caller that only knows its own secret uses
+   * `POST` so it cannot silently stop the others from verifying. Secrets are held in memory only,
+   * and they belong to demonstration endpoints - no production value ever reaches this process.
    */
-  private async updateSecrets(request: IncomingMessage, response: ServerResponse): Promise<void> {
+  private async updateSecrets(
+    request: IncomingMessage,
+    response: ServerResponse,
+    replace: boolean,
+  ): Promise<void> {
     try {
       const body = (await readJson(request)) as { secrets?: unknown };
       const secrets = Array.isArray(body.secrets) ? body.secrets.map(String) : null;
@@ -106,7 +111,8 @@ export class ControlServer {
         respond(response, 422, { message: 'secrets must be a non-empty array of strings.' });
         return;
       }
-      this.sink.setSecrets(secrets);
+      if (replace) this.sink.setSecrets(secrets);
+      else this.sink.addSecrets(secrets);
       respond(response, 200, this.state());
     } catch (error) {
       respond(response, 400, { message: (error as Error).message });
