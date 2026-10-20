@@ -6,6 +6,7 @@ import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
 import { EndpointsModule } from './modules/endpoints/endpoints.module';
 import { EventsModule } from './modules/events/events.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
 import { LimitsModule } from './modules/limits/limits.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 
@@ -20,6 +21,7 @@ import { TenantsModule } from './modules/tenants/tenants.module';
     DeliveriesModule,
     EventsModule,
     DispatchModule,
+    MetricsModule,
   ],
 })
 export class AppModule {}
