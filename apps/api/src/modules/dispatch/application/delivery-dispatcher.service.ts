@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SIGNATURE_HEADER, buildSignatureHeader } from '@hookline/signature';
 import { APP_CONFIG, AppConfig } from '../../../config/app-config';
 import { Clock } from '../../../shared/clock/clock';
+import { EventBus } from '../../../shared/events/event-bus';
 import { EndpointHealthRepository } from '../../endpoints/domain/endpoint-health.repository';
 import { CircuitState } from '../../endpoints/domain/endpoint';
 import { AttemptOutcome, classifyOutcome } from '../domain/attempt';
@@ -41,6 +42,7 @@ export class DeliveryDispatcher {
     private readonly queue: DeliveryQueue,
     private readonly transport: WebhookTransport,
     private readonly health: EndpointHealthRepository,
+    private readonly bus: EventBus,
     private readonly clock: Clock,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
@@ -136,7 +138,34 @@ export class DeliveryDispatcher {
       circuitChanged: transition?.changed ?? false,
     };
 
-    if (transition?.changed)
+    this.bus.publish({
+      kind: 'delivery.attempted',
+      tenantId: claimed.tenantId,
+      at: startedAt.toISOString(),
+      deliveryId: result.deliveryId,
+      endpointId: claimed.endpointId,
+      eventType: claimed.eventType,
+      attempt: claimed.attempt,
+      maxAttempts: claimed.maxAttempts,
+      outcome: result.outcome,
+      statusCode: result.statusCode,
+      durationMs: result.durationMs,
+      nextAttemptAt: nextAttemptAt?.toISOString() ?? null,
+      exhausted: result.exhausted,
+    });
+
+    if (transition?.changed) {
+      this.bus.publish({
+        kind: 'endpoint.circuit_changed',
+        tenantId: claimed.tenantId,
+        at: startedAt.toISOString(),
+        endpointId: claimed.endpointId,
+        endpointName: claimed.endpointName,
+        from: transition.previous,
+        to: transition.health.circuitState,
+        consecutiveFailures: transition.health.consecutiveFailures,
+        retryAt: transition.health.circuitRetryAt?.toISOString() ?? null,
+      });
       this.logger.warn({
         message: 'endpoint.circuit_changed',
         endpointId: claimed.endpointId,
@@ -146,6 +175,7 @@ export class DeliveryDispatcher {
         consecutiveFailures: transition.health.consecutiveFailures,
         retryAt: transition.health.circuitRetryAt?.toISOString() ?? null,
       });
+    }
 
     this.logger.log({
       message: 'delivery.attempted',

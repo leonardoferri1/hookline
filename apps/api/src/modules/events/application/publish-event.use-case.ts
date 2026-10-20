@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Clock } from '../../../shared/clock/clock';
 import { Database, Queryable } from '../../../shared/database/database.service';
+import { EventBus } from '../../../shared/events/event-bus';
 import { ConflictError, NotFoundError, ValidationError } from '../../../shared/errors/domain-error';
 import { isEventType } from '../../endpoints/domain/event-type';
 import { EndpointRepository } from '../../endpoints/domain/repositories';
@@ -38,6 +39,7 @@ export class PublishEvent {
     private readonly events: EventRepository,
     private readonly endpoints: EndpointRepository,
     private readonly deliveries: DeliveryRepository,
+    private readonly bus: EventBus,
     private readonly clock: Clock,
   ) {}
 
@@ -158,6 +160,15 @@ export class PublishEvent {
         eventId: event.id,
         eventType: event.type,
       });
+
+    this.bus.publish({
+      kind: 'event.published',
+      tenantId: command.tenantId,
+      at: event.createdAt.toISOString(),
+      eventId: event.id,
+      eventType: event.type,
+      deliveries: deliveries.length,
+    });
 
     return { event, deliveries, replayed: false };
   }
