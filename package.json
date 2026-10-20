@@ -1,0 +1,29 @@
+{
+  "name": "hookline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Webhook delivery platform with signing, retries, replay and delivery observability.",
+  "workspaces": [
+    "packages/signature",
+    "apps/api",
+    "apps/receiver",
+    "apps/web"
+  ],
+  "scripts": {
+    "build": "npm run build -w @hookline/signature && npm run build -w @hookline/api && npm run build -w @hookline/receiver && npm run build -w @hookline/web",
+    "build:services": "npm run build -w @hookline/signature && npm run build -w @hookline/api && npm run build -w @hookline/receiver",
+    "dev": "npm run build:services && node scripts/local.mjs",
+    "test": "npm run build:services && node scripts/test.mjs",
+    "test:external": "npm run build:services && node --test apps/api/dist/test/**/*.test.js",
+    "db:migrate": "node apps/api/dist/src/cli/migrate.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "embedded-postgres": "18.4.0-beta.17",
+    "prettier": "^3.9.10"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

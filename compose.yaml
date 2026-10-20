@@ -1,0 +1,20 @@
+# Optional path for contributors who prefer their own PostgreSQL.
+# The default development runner (`npm run dev`) starts an embedded server instead.
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: hookline
+      POSTGRES_PASSWORD: hookline-local-only
+      POSTGRES_DB: hookline
+    ports:
+      - '55441:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hookline -d hookline']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - hookline-postgres:/var/lib/postgresql/data
+volumes:
+  hookline-postgres:
