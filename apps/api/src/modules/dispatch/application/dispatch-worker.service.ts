@@ -12,8 +12,8 @@ import { Clock } from '../../../shared/clock/clock';
 import { DeliveryQueue } from '../domain/queue.repository';
 import { DeliveryDispatcher, DispatchResult } from './delivery-dispatcher.service';
 
-/** Lease recovery runs once every N cycles rather than on every one. */
-const RECOVERY_EVERY_CYCLES = 20;
+/** Expired leases are swept at most this often, as a fraction of the lease duration. */
+const RECOVERY_INTERVAL_RATIO = 0.5;
 
 /**
  * The dispatch loop: claim a batch, send it concurrently, repeat; sleep only when the queue is
@@ -33,7 +33,7 @@ export class DispatchWorker implements OnApplicationBootstrap, OnApplicationShut
   private loop: Promise<void> = Promise.resolve();
   private inFlight = new Set<Promise<DispatchResult>>();
   private wakeUp: (() => void) | null = null;
-  private cycles = 0;
+  private lastRecoveryAt = 0;
 
   constructor(
     private readonly queue: DeliveryQueue,
@@ -79,8 +79,19 @@ export class DispatchWorker implements OnApplicationBootstrap, OnApplicationShut
    * count lets both the loop and the tests know whether there was work.
    */
   async tick(): Promise<number> {
-    this.cycles += 1;
-    if (this.cycles % RECOVERY_EVERY_CYCLES === 1) await this.recoverLeases();
+    /*
+     * Scheduled by elapsed time rather than by counting cycles: a busy dispatcher and an idle one
+     * must sweep at the same rate, and the first cycle after a crash should not have to wait for a
+     * counter to line up before recovering abandoned work.
+     */
+    const now = this.clock.now().getTime();
+    if (
+      now - this.lastRecoveryAt >=
+      this.config.dispatch.leaseSeconds * 1000 * RECOVERY_INTERVAL_RATIO
+    ) {
+      this.lastRecoveryAt = now;
+      await this.sweepExpiredLeases();
+    }
 
     const batch = await this.queue.claimDue(
       this.workerId,
@@ -125,10 +136,15 @@ export class DispatchWorker implements OnApplicationBootstrap, OnApplicationShut
     return dispatched;
   }
 
-  private async recoverLeases(): Promise<void> {
+  /**
+   * Returns deliveries abandoned by a dispatcher that died mid-request. Public so an operator - or
+   * a test - can force the sweep instead of waiting for the loop's own schedule.
+   */
+  async sweepExpiredLeases(): Promise<number> {
     const recovered = await this.queue.recoverExpiredLeases(this.clock.now());
     if (recovered > 0)
       this.logger.warn({ message: 'dispatcher.leases_recovered', count: recovered });
+    return recovered;
   }
 
   /** Sleeps until the idle interval elapses or shutdown interrupts it. */

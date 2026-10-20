@@ -52,6 +52,11 @@ export class PostgresEndpointRepository extends EndpointRepository {
    * Fan-out runs in the database so ingest does not load every endpoint into memory to filter it.
    * The predicate mirrors `matchesSubscription`: an exact match, `*`, or a `prefix.*` pattern
    * turned into a LIKE prefix. Event types exclude `_` precisely so this LIKE cannot widen.
+   *
+   * Paused endpoints are included on purpose. Pausing is an operator saying "stop sending to this
+   * destination for now", not "unsubscribe it": the deliveries queue up and go out when it is
+   * enabled again, which is what makes pausing usable during an incident. The dispatcher is what
+   * declines to send them meanwhile.
    */
   override async findSubscribers(
     tenantId: string,
@@ -62,7 +67,6 @@ export class PostgresEndpointRepository extends EndpointRepository {
       `SELECT ${ENDPOINT_COLUMNS}
          FROM endpoints e
         WHERE e.tenant_id = $1
-          AND e.status = 'enabled'
           AND EXISTS (
                 SELECT 1
                   FROM unnest(e.event_types) AS pattern
