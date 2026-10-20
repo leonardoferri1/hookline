@@ -2,7 +2,16 @@ import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { APP_CONFIG, AppConfig } from '../../config/app-config';
 
-export type Queryable = Pick<PoolClient, 'query'>;
+/**
+ * The narrow surface repositories depend on. Both the pool and a transaction client satisfy it,
+ * which is what lets a use case pass its open transaction down into several repositories.
+ */
+export interface Queryable {
+  query<T extends QueryResultRow = QueryResultRow>(
+    text: string,
+    values?: readonly unknown[],
+  ): Promise<QueryResult<T>>;
+}
 
 /**
  * Owns the connection pool and the transaction boundary.
@@ -13,7 +22,7 @@ export type Queryable = Pick<PoolClient, 'query'>;
  * serialize concurrent callers that are not contending on a single row.
  */
 @Injectable()
-export class Database implements OnApplicationShutdown {
+export class Database implements Queryable, OnApplicationShutdown {
   readonly pool: Pool;
 
   constructor(@Inject(APP_CONFIG) config: AppConfig) {
@@ -27,11 +36,16 @@ export class Database implements OnApplicationShutdown {
     });
   }
 
-  query<T extends QueryResultRow>(
+  query<T extends QueryResultRow = QueryResultRow>(
     text: string,
     values: readonly unknown[] = [],
   ): Promise<QueryResult<T>> {
     return this.pool.query<T>(text, values as unknown[]);
+  }
+
+  /** Resolves to the caller's transaction when there is one, and to the pool otherwise. */
+  with(client?: Queryable): Queryable {
+    return client ?? this;
   }
 
   async transaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
