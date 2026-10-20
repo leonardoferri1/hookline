@@ -30,14 +30,27 @@ export async function setFlash(flash: Flash): Promise<void> {
   });
 }
 
-export async function takeFlash(): Promise<Flash | null> {
+/**
+ * Reads the message without clearing it.
+ *
+ * Next.js only allows a cookie to be modified from a server action or a route handler, never while
+ * rendering, so the clearing is done by `DELETE /api/flash` once the notice has been painted. The
+ * short max-age is the backstop: with scripting unavailable the message simply expires instead of
+ * following the operator around.
+ */
+export async function peekFlash(): Promise<Flash | null> {
   const store = await cookies();
   const raw = store.get(COOKIE)?.value;
   if (!raw) return null;
-  store.delete(COOKIE);
   try {
     return JSON.parse(raw) as Flash;
   } catch {
     return null;
   }
+}
+
+/** Called from the route handler that clears the notice after it has been shown. */
+export async function clearFlash(): Promise<void> {
+  const store = await cookies();
+  store.delete(COOKIE);
 }
