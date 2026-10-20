@@ -1,0 +1,17 @@
+{
+  "name": "@hookline/receiver",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Controllable webhook receiver used to rehearse outages, latency and signature failures.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/main.js"
+  },
+  "dependencies": {
+    "@hookline/signature": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
+  }
+}
