@@ -1,4 +1,5 @@
 import { Delivery, DeliveryState } from '../domain/delivery';
+import { AttemptOutcome, DeliveryAttempt, DeliveryListItem } from '../domain/delivery-attempt';
 
 export interface DeliveryRow {
   id: string;
@@ -45,5 +46,67 @@ export function toDelivery(row: DeliveryRow): Delivery {
     replayOf: row.replay_of,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+export interface DeliveryListRow extends DeliveryRow {
+  endpoint_name: string;
+  event_type: string;
+  settled_in_ms: number | null;
+}
+
+export interface DeliveryAttemptRow {
+  id: string;
+  delivery_id: string;
+  attempt_number: number;
+  outcome: AttemptOutcome;
+  status_code: number | null;
+  error_reason: string | null;
+  error_message: string | null;
+  duration_ms: number;
+  request_headers: Record<string, string>;
+  response_headers: Record<string, string>;
+  response_body: string | null;
+  response_truncated: boolean;
+  started_at: Date;
+}
+
+export function toDeliveryListItem(row: DeliveryListRow): DeliveryListItem {
+  return {
+    id: row.id,
+    state: row.state,
+    endpointId: row.endpoint_id,
+    endpointName: row.endpoint_name,
+    eventId: row.event_id,
+    eventType: row.event_type,
+    partitionKey: row.partition_key,
+    attemptCount: row.attempt_count,
+    maxAttempts: row.max_attempts,
+    lastStatusCode: row.last_status_code,
+    lastError: row.last_error,
+    nextAttemptAt: row.next_attempt_at,
+    firstAttemptAt: row.first_attempt_at,
+    completedAt: row.completed_at,
+    replayOf: row.replay_of,
+    createdAt: row.created_at,
+    settledInMs: row.settled_in_ms === null ? null : Math.round(row.settled_in_ms),
+  };
+}
+
+export function toDeliveryAttempt(row: DeliveryAttemptRow): DeliveryAttempt {
+  return {
+    id: row.id,
+    deliveryId: row.delivery_id,
+    attemptNumber: row.attempt_number,
+    outcome: row.outcome,
+    statusCode: row.status_code,
+    errorReason: row.error_reason,
+    errorMessage: row.error_message,
+    durationMs: row.duration_ms,
+    requestHeaders: row.request_headers,
+    responseHeaders: row.response_headers,
+    responseBody: row.response_body,
+    responseTruncated: row.response_truncated,
+    startedAt: row.started_at,
   };
 }
